@@ -1,29 +1,30 @@
 #! /usr/bin/env python3
-# Echo client program
-import socket, sys, re
- 
+
+import socket, sys, re, os 
 sys.path.append("../lib")       # for params
 import params
-
 from framedSock import framedSend, framedReceive
-
-
-# Used retrieve input and output files.
-input_file = sys.argv[1]
-server_file_name = sys.argv[2]
 
 switchesVarDefaults = (
     (('-s', '--server'), 'server', "127.0.0.1:50001"),
-    #(('-d', '--debug'), "debug", False), # boolean (set if present)
-    (('-?', '--usage'), "usage", False), # boolean (set if present)
+    (('-d', '--debug'), "debug", False),  # boolean (set if present)
+    (('-?', '--usage'), "usage", False),  # boolean (set if present)
+    (('-f', '--file'), "file", " "),  # used to get input file
+    (('-o', '--outfile'), "outfile", " "),  # used to get server file name
     )
 
 progname = "framedClient"
 paramMap = params.parseParams(switchesVarDefaults)
 
 server = paramMap["server"]
-usage =  paramMap["usage"]
-#debug  = paramMap["debug"]
+debug = paramMap["debug"]
+usage = paramMap["usage"]
+input_file = paramMap["file"]
+server_file_name = paramMap["outfile"]
+
+#print(input_file)
+#print(server_file_name)
+#print(os.getcwd() + '/' + input_file)
 
 if usage:
     params.usage()
@@ -37,7 +38,7 @@ except:
     
 addrFamily = socket.AF_INET
 socktype = socket.SOCK_STREAM
-addrPort = (serverHost, serverPort)#host IP and Port
+addrPort = (serverHost, serverPort)  # host IP and Port
 
 s_conn = socket.socket(addrFamily, socktype)
 
@@ -47,22 +48,26 @@ if s_conn is None:
 
 s_conn.connect(addrPort)
 print("Client connected!")
+is_connected = True  # flag for file_interuption
 
-with open (input_file,'rb') as file:
-    t_file_data = file.read(1024)
-    while t_file_data:
-        s_conn.send(data)
-        t_file_data = file.read(1024)
-    print("File has been sent")
-    s_conn.close()
+title_end = b'title_end'  # to send if end of server file name
 
-print("file sennding complete")
-"""
-print("sending hello world")
-framedSend(s_conn, b"hello world", debug)
-print("received:", framedReceive(s_conn, debug))
-
-print("sending hello world")
-framedSend(s_conn, b"hello world", debug)
-print("received:", framedReceive(s, debug))
-"""
+# checks on client side if file exists
+if not os.path.exists(os.getcwd() + '/' + input_file):
+    print("File does not exists!!!")
+    sys.exit(0)
+else:
+    # initialy send the name of the file
+    framedSend(s_conn, server_file_name.encode(), debug)
+    framedSend(s_conn, title_end, debug)
+    with open(input_file, 'rb') as file:
+        t_file_data = file.read(100)  # only 100 bytes becasue of framedSock
+        if not t_file_data:
+            print("file is empty")
+        else:
+            while t_file_data:
+                framedSend(s_conn, t_file_data, debug)
+                t_file_data = file.read(100)  # only 100 bytes becasue of framedSock
+        print("File has been sent")
+        s_conn.close()
+print("file sending complete")

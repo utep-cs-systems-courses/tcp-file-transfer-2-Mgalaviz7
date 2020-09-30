@@ -1,19 +1,19 @@
 #! /usr/bin/env python3
-
-import sys
+import sys,os
 sys.path.append("../lib")       # for params
 import re, socket, params
+from framedSock import framedReceive, framedSend
 
 switchesVarDefaults = (
-    (('-l', '--listenPort') ,'listenPort', 50001),
-    #(('-d', '--debug'), "debug", False), # boolean (set if present)
-    (('-?', '--usage'), "usage", False), # boolean (set if present)
+    (('-l', '--listenPort'), 'listenPort', 50001),
+    (('-d', '--debug'), "debug", False),  # boolean (set if present)
+    (('-?', '--usage'), "usage", False),  # boolean (set if present)
     )
 
 progname = "echoserver"
 paramMap = params.parseParams(switchesVarDefaults)
 
-#debug = paramMap['debug']
+debug = paramMap['debug']
 listenPort = paramMap['listenPort']
 
 if paramMap['usage']:
@@ -29,36 +29,36 @@ print("Waiting for connections (listening) from :", bindAddr)
 
 sock, conn_address = l_sock.accept() #waits till connection
 print("Server connected to client from", conn_address) #connection sucssesful
+is_connected = True  # flag for file_interuption
+file_name_flag = True
 
-with open ("read_file.txt", 'wb') as file:
-    print("Reciving Data")
-    while True:
-        t_file_data = sock.recv(1024)
-        print("data: "+data)
-        if not data:
-            break:
-        else:
-            file.write(data)
-print("File recived")
-sock.close()
+title_end = b'title_end'  # to send if end of title
+file_name = ""
 
-"""
-from framedSock import framedSend, framedReceive
+while file_name_flag:
+    file_flag = framedReceive(sock, debug)  # get file name
+    file_name = file_name + " " + file_flag.decode()  
+    if file_flag == title_end:
+        file_name = file_name.replace('title_end','') # removes title_end flag
+        file_name = file_name.replace(' ','')
+        file_name_flag = False
 
-while True:
-    payload = framedReceive(sock, debug)
-    if debug: print("rec'd: ", payload)
-    if not payload:
-        break
-    payload += b"!"             # make emphatic!
-    framedSend(sock, payload, debug)
-"""
-"""
-while 1:
-    data = sock.recv(1024).decode()
-    if not data: break
-    sendMsg = f"Echoing <{data}>"
-    print(f"Received <{data}>, sending <{sendMsg}>")
-    sendAll(conn_address, sendMsg.encode())
-sock.close()#close the socket
-"""
+# Checks to see if the file that is being transfered already exists
+if os.path.exists(os.getcwd() + '/' + file_name ):
+    print("File exists!!!")
+    sys.exit(0)
+else:
+    with open(file_name, 'wb') as file:
+        print("Writing data.")
+        while is_connected:
+            try:
+                t_file_data = framedReceive(sock, debug)  # get the data being sent
+                print(t_file_data.decode())
+                file.write(t_file_data)
+            except:
+                print("no more bytes")
+                is_connected = False
+                #print(t_file_data.decode())                
+print("File received")
+sock.close()  # close the socket
+
