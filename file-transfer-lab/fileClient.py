@@ -22,10 +22,6 @@ usage = paramMap["usage"]
 input_file = paramMap["file"]
 server_file_name = paramMap["outfile"]
 
-#print(input_file)
-#print(server_file_name)
-#print(os.getcwd() + '/' + input_file)
-
 if usage:
     params.usage()
 
@@ -53,21 +49,24 @@ is_connected = True  # flag for file_interuption
 title_end = b'title_end'  # to send if end of server file name
 
 # checks on client side if file exists
-if not os.path.exists(os.getcwd() + '/' + input_file):
+if not os.path.isfile(input_file):
     print("File does not exists!!!")
     sys.exit(0)
 else:
-    # initialy send the name of the file
-    framedSend(s_conn, server_file_name.encode(), debug)
-    framedSend(s_conn, title_end, debug)
-    with open(input_file, 'rb') as file:
-        t_file_data = file.read(100)  # only 100 bytes becasue of framedSock
-        if not t_file_data:
-            print("file is empty")
-        else:
-            while t_file_data:
-                framedSend(s_conn, t_file_data, debug)
-                t_file_data = file.read(100)  # only 100 bytes becasue of framedSock
+    if os.path.getsize(input_file) == 0:
+        print(input_file + " is empty")
+        sys.exit(0)
+    else:
+        # initialy send the name of the file
+        framedSend(s_conn, server_file_name.encode(), debug)
+        framedSend(s_conn, title_end, debug)
+        with open(input_file, 'rb') as file:
+            t_file_data = file.read(100)  # only 100 bytes becasue of framedSock
+            if not t_file_data:
+                print("Finished sending bytes")
+            else:
+                while t_file_data:
+                    framedSend(s_conn, t_file_data, debug)
+                    t_file_data = file.read(100)  # only 100 bytes becasue of framedSock
         print("File has been sent")
-        s_conn.close()
-print("file sending complete")
+s_conn.close()

@@ -12,6 +12,8 @@ switchesVarDefaults = (
 
 progname = "echoserver"
 paramMap = params.parseParams(switchesVarDefaults)
+title_end = b'title_end'  # to send if end of title
+file_name = ""
 
 debug = paramMap['debug']
 listenPort = paramMap['listenPort']
@@ -27,38 +29,47 @@ l_sock.listen(5) # can listen from up 5 sources
 
 print("Waiting for connections (listening) from :", bindAddr)
 
-sock, conn_address = l_sock.accept() #waits till connection
-print("Server connected to client from", conn_address) #connection sucssesful
-is_connected = True  # flag for file_interuption
-file_name_flag = True
-
-title_end = b'title_end'  # to send if end of title
-file_name = ""
-
-while file_name_flag:
-    file_flag = framedReceive(sock, debug)  # get file name
-    file_name = file_name + " " + file_flag.decode()  
-    if file_flag == title_end:
-        file_name = file_name.replace('title_end','') # removes title_end flag
-        file_name = file_name.replace(' ','')
-        file_name_flag = False
-
-# Checks to see if the file that is being transfered already exists
-if os.path.exists(os.getcwd() + '/' + file_name ):
-    print("File exists!!!")
-    sys.exit(0)
-else:
-    with open(file_name, 'wb') as file:
-        print("Writing data.")
-        while is_connected:
+while True:
+    sock, conn_address = l_sock.accept() #waits till connection
+    print("Server connected to client from", conn_address) #connection sucssesful
+    is_connected = True  # flag for file_interuption
+    file_name_flag = True
+    
+    # forking
+    if not os.fork():
+    
+        while file_name_flag:
             try:
-                t_file_data = framedReceive(sock, debug)  # get the data being sent
-                print(t_file_data.decode())
-                file.write(t_file_data)
+                file_flag = framedReceive(sock, debug)  # get file name
+                file_name = file_name + " " + file_flag.decode()
             except:
-                print("no more bytes")
-                is_connected = False
-                #print(t_file_data.decode())                
-print("File received")
-sock.close()  # close the socket
+                print("Nothing recived.")
+                file_name = ""
+                file_name_flag = False
+                sock.close()
+                sys.exit(0)
+            else:
+                if file_flag == title_end:
+                    file_name = file_name.replace('title_end','') # removes title_end flag
+                    file_name = file_name.replace(' ','')
+                    file_name_flag = False
 
+        # Checks to see if the file that is being transfered already exists
+        if os.path.isfile( file_name ):
+            print("File exists!!!")
+            sock.close()
+            sys.exit(0)
+        else:
+            with open(file_name, 'wb') as file:
+                print("Writing data.")
+                while is_connected:
+                    try:
+                        t_file_data = framedReceive(sock, debug)  # get the data being sent
+                        #print(t_file_data.decode())
+                        file.write(t_file_data)
+                    except:
+                        #print("no more bytes")
+                        is_connected = False
+                print("File received")
+    else:
+        sock.close()  # close the socket
