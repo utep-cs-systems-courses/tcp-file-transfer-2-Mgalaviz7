@@ -6,6 +6,8 @@ sys.path.append("../lib")       # for params
 import re, socket, params
 from framedSock import framedReceive, framedSend
 
+file_log = {}
+
 switchesVarDefaults = (
     (('-l', '--listenPort'), 'listenPort', 50001),
     (('-d', '--debug'), "debug", False),  # boolean (set if present)
@@ -44,30 +46,31 @@ class server(threading.Thread):
         self.current_file_name = ""
     
     def run(self):
+        
         self.current_file_name = file_name(self.sock)
-        if lock_file_flag(self.current_file_name):
-            lock_thread.acquire()
-            write_to_file(self.current_file_name, self.sock)
-            lock_thread.release()
+
+        
+        if file_log.get(self.current_file_name) == True:
+            print("\nSend back to client that file is in being accessed.\n")
+            print("\n--------------------------------------------------------------\n")
+            example = b'File in use.'
+            framedSend(self.sock,example,debug)
         else:
+            example = b'File not in use.'
+            framedSend(self.sock,example,debug)
+
+            lock_thread.acquire()
+            file_log[self.current_file_name] = True
+            lock_thread.release()
+
             write_to_file(self.current_file_name, self.sock)
 
-"""
-Function used to check if more than one thread is trying to accesse same file. 
-@param recives the name of the file
+            #print("\nupdating log")
+            lock_thread.acquire()
+            file_log[self.current_file_name] = False
+            lock_thread.release()
+            #print("updated log\n")
 
-"""        
-def lock_file_flag(current_file_name):
-    global previous_file_name
-    
-    print(previous_file_name + " = " + current_file_name)
-    if current_file_name == previous_file_name:
-        print("Locking file")
-        return True
-    else:
-        previous_file_name = current_file_name 
-        print("Running file")
-        return False
 
 """
 Function used to infinitly accept socket connedtions and create a thread instance.
@@ -76,12 +79,13 @@ Function used to infinitly accept socket connedtions and create a thread instanc
 def threading_sock():
     while True:
         sock, conn_address = l_sock.accept() #waits till connection
-        print("Server connected to client from", conn_address) #connection sucssesful
+        print("\nServer connected to client from", conn_address) #connection sucssesful
         server_thread = server(sock)
         server_thread.start()
 
 """
-Function used to handle reciving the name of the file. 
+Function used to handle reciving the name of the file. And communicate with the client
+to see if the file being transfer is alerady in use. 
 Uses function framed recive from framedSock.
 @param recives the instance of the socket connection
 
@@ -123,13 +127,13 @@ def file_name(sock):
 Function used for write to file. Uses function framed recive from framedSock.
 @param recives the name of file
 @param recives the instance of the socket connection
-
+ 
 """
 def write_to_file(file_name, sock):
     is_connected = True  # flag for file_interuption
     while is_connected:
         with open(file_name, 'wb') as file:
-            print("Writing data.")
+            print("\nWriting data.\n")
             while is_connected:
                 try:
                     t_file_data = framedReceive(sock, debug)  # get the data being sent
@@ -138,8 +142,7 @@ def write_to_file(file_name, sock):
                 except:
                     is_connected = False
                     sock.close()
-                    sys.exit(0)
-                print("File received")
-
+            print("File received.")
+            print("\n--------------------------------------------------------------\n")
 if __name__=="__main__":
     threading_sock()
